@@ -6,6 +6,7 @@ import pyperclip
 import webbrowser
 import json
 import os, sys
+import re
 
 DEFAULT_COLUMNS = [
     ("Name", True),
@@ -162,26 +163,18 @@ class VaultWindow(QWidget):
 
     def edit_record(self, row):
         record = self.vault.data[row]
-        dialog = RecordDialog(self, record, read_only=False)
+        existing_names = {rec.get("Name", "").strip().lower() for idx, rec in enumerate(self.vault.data) if idx != row}
+        dialog = RecordDialog(self, record, read_only=False, existing_names=existing_names)
         if dialog.exec_() == QDialog.Accepted:
             updated_record = dialog.get_record()
-            # Check for duplicate name (excluding current row)
-            for idx, existing in enumerate(self.vault.data):
-                if idx != row and existing.get("Name", "").strip().lower() == updated_record.get("Name", "").strip().lower():
-                    QMessageBox.warning(self, "Duplicate", "A record with this Name already exists.")
-                    return
             self.vault.update_record(row, updated_record)
             self.load_table()
 
     def add_record(self):
-        dialog = RecordDialog(self)
+        existing_names = {rec.get("Name", "").strip().lower() for rec in self.vault.data}
+        dialog = RecordDialog(self, existing_names=existing_names)
         if dialog.exec_() == QDialog.Accepted:
             record = dialog.get_record()
-            # Check for duplicate name
-            for existing in self.vault.data:
-                if existing.get("Name", "").strip().lower() == record.get("Name", "").strip().lower():
-                    QMessageBox.warning(self, "Duplicate", "A record with this Name already exists.")
-                    return
             self.vault.add_record(record)
             self.load_table()
 
@@ -253,11 +246,13 @@ class VaultWindow(QWidget):
             QMessageBox.warning(self, "Error", f"Failed to import: {e}")
 
 class RecordDialog(QDialog):
-    def __init__(self, parent=None, record=None, read_only=False):
+    def __init__(self, parent=None, record=None, read_only=False, existing_names=None):
         super().__init__(parent)
         self.setWindowTitle("Add/Edit Record" if not read_only else "View Record")
         self.setGeometry(200, 200, 400, 400)
         self.read_only = read_only
+        self.existing_names = existing_names or set()
+        self.original_name = record.get("Name", "").strip().lower() if record else None
         self.init_ui(record)
 
     def init_ui(self, record=None):
@@ -293,6 +288,24 @@ class RecordDialog(QDialog):
             btn.clicked.connect(self.reject)
             layout.addWidget(btn)
         self.setLayout(layout)
+
+    def is_valid_url(self, url):
+        if not url.strip():
+            return True  # Allow empty
+        pattern = re.compile(r'^(https?://)?([\w.-]+)\.([a-zA-Z]{2,})(/\S*)?$')
+        return bool(pattern.match(url.strip()))
+
+    def accept(self):
+        name = self.inputs["Name"].text().strip().lower()
+        url = self.inputs["URL"].text().strip()
+        # Duplicate check (ignore original name if editing)
+        if name in self.existing_names and name != self.original_name:
+            QMessageBox.warning(self, "Duplicate", "A record with this Name already exists. Please choose a different name.")
+            return
+        if url and not self.is_valid_url(url):
+            QMessageBox.warning(self, "Invalid URL", "The URL format is invalid. Please correct it before saving.")
+            return
+        super().accept()
 
     def get_record(self):
         record = {}
