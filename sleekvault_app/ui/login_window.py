@@ -6,6 +6,7 @@ from ui.vault_window import VaultWindow
 from PyQt5.QtGui import QPixmap
 import os
 import sys
+from ui.change_password_dialog import ChangePasswordDialog
 
 def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
@@ -47,11 +48,15 @@ class LoginWindow(QWidget):
         self.register_btn = QPushButton("Register New User")
         layout.addWidget(self.register_btn)
 
+        self.change_password_btn = QPushButton("Change Password")
+        layout.addWidget(self.change_password_btn)
+
         self.setLayout(layout)
 
         # Connect buttons (logic to be implemented)
         self.login_btn.clicked.connect(self.login)
         self.register_btn.clicked.connect(self.register)
+        self.change_password_btn.clicked.connect(self.open_change_password)
         self.password_input.returnPressed.connect(self.login)
         self.username_input.returnPressed.connect(self.login)
 
@@ -84,3 +89,7 @@ class LoginWindow(QWidget):
         self.hide()
         self.register_window = RegisterWindow(self)
         self.register_window.show()
+
+    def open_change_password(self):
+        dlg = ChangePasswordDialog(self)
+        dlg.exec_()

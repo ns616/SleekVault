@@ -19,6 +19,18 @@ SleekVault is a secure, user-friendly desktop application for managing your cred
 
 ---
 
+## Screenshots
+
+**Login Screen:**
+
+![Login Window](sleekvault_app/resources/login.png)
+
+**Vault Grid View:**
+
+![Vault Grid](sleekvault_app/resources/grid.png)
+
+---
+
 ## Installation
 
 ### 1. Download SleekVault
