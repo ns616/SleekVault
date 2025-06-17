@@ -7,6 +7,7 @@ import webbrowser
 import json
 import os, sys
 import re
+import functools
 
 DEFAULT_COLUMNS = [
     ("Name", True),
@@ -132,18 +133,17 @@ class VaultWindow(QWidget):
         for col_idx, col in enumerate(self.selected_columns):
             value = record.get(col, "")
             if col == "Password":
-                # Only show the button with masked password, no QTableWidgetItem
                 copy_btn = QPushButton("******")
                 copy_btn.setIcon(QIcon.fromTheme("edit-copy"))
                 copy_btn.setStyleSheet("padding: 4px 8px; text-align: center;")
-                copy_btn.clicked.connect(lambda _, v=value: pyperclip.copy(v))
+                copy_btn.clicked.connect(functools.partial(self.copy_to_clipboard, value))
                 self.table.setCellWidget(row, col_idx, copy_btn)
             elif col == "Username":
                 masked = value[:3] + "***" if len(value) > 3 else value + "***"
                 copy_btn = QPushButton(masked)
                 copy_btn.setIcon(QIcon.fromTheme("edit-copy"))
                 copy_btn.setStyleSheet("padding: 4px 8px; text-align: center;")
-                copy_btn.clicked.connect(lambda _, v=value: pyperclip.copy(v))
+                copy_btn.clicked.connect(functools.partial(self.copy_to_clipboard, value))
                 self.table.setCellWidget(row, col_idx, copy_btn)
             else:
                 item = QTableWidgetItem(str(value))
@@ -244,6 +244,9 @@ class VaultWindow(QWidget):
             QMessageBox.information(self, "Imported", f"Imported {len(new_records)} new records.")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to import: {e}")
+
+    def copy_to_clipboard(self, value):
+        pyperclip.copy(value)
 
 class RecordDialog(QDialog):
     def __init__(self, parent=None, record=None, read_only=False, existing_names=None):

@@ -66,18 +66,34 @@ class LoginWindow(QWidget):
         if not username or not password:
             QMessageBox.warning(self, "Error", "Username and password required.")
             return
+        if username == "admin" and password == "admin":
+            from ui.admin_window import AdminWindow
+            self.hide()
+            self.admin_window = AdminWindow(self)
+            self.admin_window.exec_()
+            self.show()
+            return
         user_manager = UserManager()
         vault_path = user_manager.get_vault_path(username)
         if not vault_path:
             QMessageBox.warning(self, "Error", "User not found.")
             return
-        # Try to decrypt vault to verify password
         from vault import VaultManager
         try:
+            # Check if vault file is empty (new user or corrupted)
+            if not os.path.exists(vault_path) or os.path.getsize(vault_path) == 0:
+                QMessageBox.warning(self, "Error", "Vault file is missing or empty.")
+                return
             vault = VaultManager(vault_path, password)
-            # If decryption fails, vault.data will be empty
-            if vault.data is None:
-                raise Exception()
+            # Try to decrypt vault: if password is wrong, this will raise
+            with open(vault_path, "rb") as f:
+                encrypted = f.read()
+            from crypto_utils import decrypt_data
+            try:
+                decrypt_data(encrypted, password)
+            except Exception:
+                QMessageBox.warning(self, "Error", "Incorrect password or vault file corrupted.")
+                return
         except Exception:
             QMessageBox.warning(self, "Error", "Incorrect password or vault file corrupted.")
             return
@@ -93,3 +109,8 @@ class LoginWindow(QWidget):
     def open_change_password(self):
         dlg = ChangePasswordDialog(self)
         dlg.exec_()
+
+    def showEvent(self, event):
+        self.username_input.clear()
+        self.password_input.clear()
+        super().showEvent(event)
