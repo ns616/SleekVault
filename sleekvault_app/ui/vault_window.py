@@ -118,7 +118,9 @@ class VaultWindow(QWidget):
     def load_table(self):
         self.table.setRowCount(0)
         filter_text = self.filter_input.text().strip().lower() if hasattr(self, 'filter_input') else ""
-        for record in self.vault.data:
+        self.filtered_records = []  # Store filtered records and their original indices
+        self.filtered_indices = []
+        for idx, record in enumerate(self.vault.data):
             if filter_text:
                 name = str(record.get("Name", "")).lower()
                 desc = str(record.get("Description", "")).lower()
@@ -126,6 +128,8 @@ class VaultWindow(QWidget):
                 if filter_text not in name and filter_text not in desc and filter_text not in url:
                     continue
             self.add_table_row(record)
+            self.filtered_records.append(record)
+            self.filtered_indices.append(idx)
 
     def add_table_row(self, record):
         row = self.table.rowCount()
@@ -157,17 +161,20 @@ class VaultWindow(QWidget):
         self.table.setCellWidget(row, len(self.selected_columns) + 1, edit_btn)
 
     def view_record(self, row):
-        record = self.vault.data[row]
+        # Use filtered_records for display
+        record = self.filtered_records[row]
         dialog = RecordDialog(self, record, read_only=True)
         dialog.exec_()
 
     def edit_record(self, row):
-        record = self.vault.data[row]
-        existing_names = {rec.get("Name", "").strip().lower() for idx, rec in enumerate(self.vault.data) if idx != row}
+        # Use filtered_records for display, but update original vault.data
+        record = self.filtered_records[row]
+        original_idx = self.filtered_indices[row]
+        existing_names = {rec.get("Name", "").strip().lower() for idx, rec in enumerate(self.vault.data) if idx != original_idx}
         dialog = RecordDialog(self, record, read_only=False, existing_names=existing_names)
         if dialog.exec_() == QDialog.Accepted:
             updated_record = dialog.get_record()
-            self.vault.update_record(row, updated_record)
+            self.vault.update_record(original_idx, updated_record)
             self.load_table()
 
     def add_record(self):
@@ -186,7 +193,9 @@ class VaultWindow(QWidget):
         confirm = QMessageBox.question(self, "Delete Record", "Do you really want to delete this record?", QMessageBox.Cancel | QMessageBox.Yes, QMessageBox.Cancel)
         if confirm != QMessageBox.Yes:
             return
-        self.vault.delete_record(row)
+        # Map to original index
+        original_idx = self.filtered_indices[row]
+        self.vault.delete_record(original_idx)
         self.load_table()
 
     def logout(self):
@@ -261,24 +270,41 @@ class RecordDialog(QDialog):
     def init_ui(self, record=None):
         layout = QVBoxLayout()
         self.inputs = {}
+        self.password_toggle_btn = None
         for col, _ in DEFAULT_COLUMNS:
             if col == "Secret Questions":
                 input_widget = QTextEdit()
                 input_widget.setPlaceholderText("Q1:Answer1\nQ2:Answer2")
             elif col == "Comments":
                 input_widget = QTextEdit()
+            elif col == "Password":
+                pw_layout = QHBoxLayout()
+                input_widget = QLineEdit()
+                input_widget.setEchoMode(QLineEdit.Password)
+                input_widget.setObjectName(col)
+                if record:
+                    input_widget.setText(record.get(col, ""))
+                if self.read_only:
+                    input_widget.setReadOnly(True)
+                pw_layout.addWidget(input_widget)
+                self.password_toggle_btn = QPushButton()
+                self.password_toggle_btn.setCheckable(True)
+                self.password_toggle_btn.setText("Show")
+                self.password_toggle_btn.setFixedWidth(60)
+                self.password_toggle_btn.toggled.connect(lambda checked, w=input_widget: w.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password))
+                self.password_toggle_btn.toggled.connect(lambda checked, b=self.password_toggle_btn: b.setText("Hide" if checked else "Show"))
+                pw_layout.addWidget(self.password_toggle_btn)
+                layout.addWidget(QLabel(col))
+                layout.addLayout(pw_layout)
+                self.inputs[col] = input_widget
+                continue
             else:
                 input_widget = QLineEdit()
-                if col == "Password":
-                    input_widget.setEchoMode(QLineEdit.Password)
-            input_widget.setObjectName(col)
-            if record:
-                if isinstance(input_widget, QTextEdit):
-                    input_widget.setPlainText(record.get(col, ""))
-                else:
+                input_widget.setObjectName(col)
+                if record:
                     input_widget.setText(record.get(col, ""))
-            if self.read_only:
-                input_widget.setReadOnly(True)
+                if self.read_only:
+                    input_widget.setReadOnly(True)
             layout.addWidget(QLabel(col))
             layout.addWidget(input_widget)
             self.inputs[col] = input_widget
